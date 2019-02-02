@@ -33,7 +33,7 @@ import pprint
 import heapq
 
 PROG = 'mqtt-historian'
-VERSION = '0.01'
+VERSION = '0.8'
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MQTT historian')
@@ -59,30 +59,6 @@ def compose_filename_for(topic, t):
     fn = ds.replace('{}', sanitised_topic)
     return fn
     
-def log_msg_to_archive(msg):
-    """
-    Append the given MQTT message to the appropriate archive file,
-    creating new files as necessary.
-    Currently, we use the most basic implementation: open the file
-    every time we want to store a new message, and close it again afterwards.
-    Optimisation options are legion:
-     + buffer, only open file(s) occasionally
-     + keep all files open at all times
-     + ...
-    """
-    t = time.time()   # receive time - this is the message timestamp from now on
-    fn = compose_filename_for(msg, t)
-    d = os.path.dirname(fn)
-    os.makedirs(d, exist_ok=True)
-    m = { 't':t, 'payload':msg.payload.decode("utf-8", "ignore") }
-    # todo: this is likely not what we want. instead, try to intelligently...
-    # ...decide if payload can be represented as...
-    #    ...a number: 372893.232
-    #    ...a string: 837 seconds (assume ASCII encoding?)
-    #    ...fallback: a uuencoded byte array
-    with open(fn,'a') as f:
-        f.write(json.dumps(m) + '\n')
-
 def ai_parse(t):
     """
     Intelligently try to guess what format the timestamp t might be in,
@@ -222,7 +198,69 @@ def make_data_iterator_for_topic(topic, starttime, endtime):
 
         # hard-coded knowledge that archive files are created one-per-day
         t = t + 60*60*24
-    
+
+#from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler,HTTPServer
+from urllib.parse import urlparse,parse_qs,parse_qsl
+
+class myHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        """
+        Accept something along the lines of
+        http://192.168.0.220:8001/api/v1/getcsv?start=2019-01-24T20000
+        &end=2019-01-29T000000
+        &t=sys/burner_hours_run&t=sys/temperatures/abgastemperatur
+        """
+        print(self.requestline)
+        print(self.path)
+        if self.path.startswith('/api/v1/getcsv'):
+            self.do_getcsv()
+        elif self.path.startswith('/api/v1/status'):
+            self.do_show_status()
+        elif self.path.startswith('/static/'):
+            self.do_serve_static_file()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_show_status(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        s = "<html><body>%s %s</body></html>" % (PROG,VERSION)
+        self.wfile.write(s.encode('utf8'))
+        
+    def do_serve_static_file(self):
+        o = urlparse(self.path)
+        fn = '.' + o.path
+        if not os.path.isfile(fn):
+            print('file not found: %s' % fn)
+            self.send_response(404)
+            self.end_headers()
+            s = "<html><body>file not found (404)</body></html>"
+            self.wfile.write(s.encode('utf8'))
+            return
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        with open(fn,'rb') as f:
+            self.wfile.write(f.read())
+
+    def do_getcsv(self):
+        print('api access!')
+        o = urlparse(self.path)
+        q = parse_qs(o.query)
+        print(o)
+        print(q)
+        self.send_response(200)
+        self.send_header('Content-type', 'text/csv')
+        self.end_headers()
+        d = retrieve_data_for(q['t'], q['start'][0], q['end'][0])
+        for line in d:
+            self.wfile.write(line.encode('utf8'))
+            self.wfile.write(b'\n')
+        
+        
 if __name__ == "__main__":
     setup_logging()
     logging.info("%s %s starting up at %s." % (
@@ -230,6 +268,10 @@ if __name__ == "__main__":
         VERSION,
         datetime.datetime.now(datetime.timezone.utc).isoformat()))
 
+    httpd = HTTPServer(('',8001), myHandler)
+    httpd.serve_forever()
+
+    
     topics = ['sys/burner_hours_run', 'sys/temperatures/abgastemperatur', 'non_existant_topic']
         # todo: support wildcards like sys/temperatures/#
     d = retrieve_data_for(topics, '2019-01-24T20000', '2019-01-29T000000')
