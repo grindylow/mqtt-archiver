@@ -31,6 +31,7 @@ import os.path
 import logging
 import pprint
 import heapq
+import glob
 
 PROG = 'mqtt-historian'
 VERSION = '0.8'
@@ -58,6 +59,17 @@ def compose_filename_for(topic, t):
     sanitised_topic = topic.replace('/','_')  # could improve on this basic version
     fn = ds.replace('{}', sanitised_topic)
     return fn
+
+def scrape_list_of_topics():
+    """
+    Glob the archive to figure out what topics we have available
+    """
+    g = glob.glob('archive/*/*/*')
+    g = [x.split('/')[3] for x in g]
+    s = set(g)
+    g = list(s)
+    g.sort()
+    return g
     
 def ai_parse(t):
     """
@@ -215,6 +227,8 @@ class myHandler(BaseHTTPRequestHandler):
         print(self.path)
         if self.path.startswith('/api/v1/getcsv'):
             self.do_getcsv()
+        elif self.path.startswith('/api/v1/gettopics'):
+            self.do_gettopics()
         elif self.path.startswith('/api/v1/status'):
             self.do_show_status()
         elif self.path.startswith('/static/'):
@@ -259,6 +273,18 @@ class myHandler(BaseHTTPRequestHandler):
         for line in d:
             self.wfile.write(line.encode('utf8'))
             self.wfile.write(b'\n')
+        
+    def do_gettopics(self):
+        """
+        return list of all topics in JSON format
+        """
+        print('api access - gettopics!')
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        l = scrape_list_of_topics()
+        j = json.dumps(l)
+        self.wfile.write(j.encode('utf8'));
         
         
 if __name__ == "__main__":
