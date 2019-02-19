@@ -1,0 +1,47 @@
+<html>
+  <head>
+    <script type="text/javascript"
+	    src="dygraph.js"></script>
+    <script type="text/javascript"
+	    src="archive-viewer.js"></script>
+    <script type="text/javascript"
+	    src="jquery-3.3.1.min.js"></script>
+    <link rel="stylesheet" href="archive-viewer.css" />
+    <link rel="stylesheet" href="xdygraph.css" />
+  </head>
+  <body>
+    <div class='row'>
+      <div id='allcontrols' class='column left'>
+	<div id='loadingindicator'>-</div>
+	<div id='topics'>
+	  <select id="topicselect" style="" size="80" multiple></select>
+	</div>
+	<div id='controls'>
+	  <input id="add_to_1" data-dest='0' type="button" value='Add to 1' />
+	  <input id="add_to_2" data-dest='1' type="button" value='Add to 2' />
+	  <input id="add_to_3" data-dest='2' type="button" value='Add to 3' />
+	  <input id="add_to_4" data-dest='3' type="button" value='Add to 4' />
+	  <br />
+	  Start date: <input id="startdate" type="date" value="2019-01-31" />
+	  End date: <input id="enddate" type="date" value="2019-02-02" />
+	  <br />
+	  <input id="update_dates" type="button" value='Update Dates' />
+	</div>
+      </div>
+      <div id="graphs" class='column right'>
+	<div id="topicsdiv1" class="graphhead">Topics:</div>
+	<div id="graphdiv1"
+	     style="width:1800px; height:350px;"></div>
+	<div id="topicsdiv2" class="graphhead">Topics:</div>
+	<div id="graphdiv2"
+	     style="width:1800px; height:350px;"></div>
+	<div id="topicsdiv3" class="graphhead">Topics:</div>
+	<div id="graphdiv3"
+	     style="width:1800px; height:350px;"></div>
+	<div id="topicsdiv4" class="graphhead">Topics:</div>
+	<div id="graphdiv4"
+	     style="width:1800px; height:350px;"></div>
+      </div>
+    </div>
+  </body>
+</html>
