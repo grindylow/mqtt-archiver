@@ -32,6 +32,7 @@ import logging
 import pprint
 import heapq
 import glob
+from archive_file_handling import compose_filename_for,scrape_list_of_topics
 
 PROG = 'mqtt-historian'
 VERSION = '0.8'
@@ -47,30 +48,6 @@ def parse_args():
 def setup_logging():
     logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
 
-def compose_filename_for(topic, t):
-    """
-    Calculate the name of the archive file that should contain this message
-    at the given time.
-    Currently, we use a fixed one file per (UTC) day convention.
-    """
-    dt = datetime.datetime.utcfromtimestamp(t)
-    f = 'archive' + os.sep + '%Y' + os.sep + '%m' + os.sep + '{}' + os.sep + '{}-%Y-%m-%dT000000Z.log'
-    ds = dt.strftime(f)
-    sanitised_topic = topic.replace('/','_')  # could improve on this basic version
-    fn = ds.replace('{}', sanitised_topic)
-    return fn
-
-def scrape_list_of_topics():
-    """
-    Glob the archive to figure out what topics we have available
-    """
-    g = glob.glob('archive/*/*/*')
-    g = [x.split('/')[3] for x in g]
-    s = set(g)
-    g = list(s)
-    g.sort()
-    return g
-    
 def ai_parse(t):
     """
     Intelligently try to guess what format the timestamp t might be in,
@@ -86,16 +63,12 @@ def ai_parse(t):
             t = t + '+0000'
         t = datetime.datetime.strptime(t, f)
         logging.info('result: %s' % t)
-        
     if isinstance(t, datetime.datetime):
         t = t.timestamp()
-
     elif isinstance(t, float):
         pass  # assume this is a UNIX epoch value
-
     else:
         throw('don''t know how to parse time value %s' % t)
-        
     return t
     
 def retrieve_data_for(topics, starttime, endtime):
@@ -150,9 +123,6 @@ def retrieve_data_for(topics, starttime, endtime):
         elems[idx] = next(iters[idx], item({'t':7e99}))
         if all([x.myvals['t']==7e99 for x in elems]):
             break
-    
-    #for x in heapq.merge(*iters):
-    #    print(x)
 
 class item(object):
     """
@@ -211,7 +181,6 @@ def make_data_iterator_for_topic(topic, starttime, endtime):
         # hard-coded knowledge that archive files are created one-per-day
         t = t + 60*60*24
 
-#from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from http.server import BaseHTTPRequestHandler,HTTPServer
 from urllib.parse import urlparse,parse_qs,parse_qsl
 
@@ -297,10 +266,9 @@ if __name__ == "__main__":
     httpd = HTTPServer(('',8001), myHandler)
     httpd.serve_forever()
 
-    
-    topics = ['sys/burner_hours_run', 'sys/temperatures/abgastemperatur', 'non_existant_topic']
+    # EXAMPLE:
+    topics = ['sys/burner_hours_run', 'non_existant_topic']
         # todo: support wildcards like sys/temperatures/#
     d = retrieve_data_for(topics, '2019-01-24T20000', '2019-01-29T000000')
     for line in d:
         print(line)
-    

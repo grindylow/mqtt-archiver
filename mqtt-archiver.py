@@ -12,6 +12,7 @@ import logging
 import signal
 import paho.mqtt.client as mqtt   # pip3 install paho-mqtt
 import pprint
+from archive_file_handling import compose_filename_for
 
 PROG = 'mqtt-archive'
 VERSION = '0.01'
@@ -37,19 +38,6 @@ def my_sigint_handler(signal, frame):
 def setup_logging():
     logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
 
-def compose_filename_for(msg, t):
-    """
-    Calculate the name of the archive file that should contain this message
-    at the given time.
-    Currently, we use a fixed one file per (UTC) day convention.
-    """
-    dt = datetime.datetime.utcfromtimestamp(t)
-    f = 'archive' + os.sep + '%Y' + os.sep + '%m' + os.sep + '{}' + os.sep + '{}-%Y-%m-%dT000000Z.log'
-    ds = dt.strftime(f)
-    sanitised_topic = msg.topic.replace('/','_')  # could improve on this basic version
-    fn = ds.replace('{}', sanitised_topic)
-    return fn
-    
 def log_msg_to_archive(msg):
     """
     Append the given MQTT message to the appropriate archive file,
@@ -62,7 +50,7 @@ def log_msg_to_archive(msg):
      + ...
     """
     t = time.time()   # receive time - this is the message timestamp from now on
-    fn = compose_filename_for(msg, t)
+    fn = compose_filename_for(msg.topic, t)
     d = os.path.dirname(fn)
     os.makedirs(d, exist_ok=True)
     m = { 't':t, 'payload':msg.payload.decode("utf-8", "ignore") }
@@ -71,6 +59,10 @@ def log_msg_to_archive(msg):
     #    ...a number: 372893.232
     #    ...a string: 837 seconds (assume ASCII encoding?)
     #    ...fallback: a uuencoded byte array
+    # Our goal should be to archive the payload as-is wherever possible,
+    # potentially masking out \n by uuencoding.
+    # Whoever retrieves the data can then put in some effort to convert
+    # different types of payload to formats suitable for further processing.
     with open(fn,'a') as f:
         f.write(json.dumps(m) + '\n')
     
@@ -99,7 +91,6 @@ if __name__ == "__main__":
     # The callback for when a PUBLISH message is received from the server.
     def on_message(client, userdata, msg):
         print(msg.topic+" --> "+str(msg.payload))
-        print("GRILL")
         log_msg_to_archive(msg)
 
 
@@ -115,5 +106,3 @@ if __name__ == "__main__":
     # Other loop*() functions are available that give a threaded interface and a
     # manual interface.
     client.loop_forever()
-
-    
