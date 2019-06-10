@@ -1,0 +1,4 @@
+{
+    "outtemplate": "/mnt/usbstick/archive/%Y/%m/{}/{}-%Y-%m-%dT000000Z.log"
+}
+

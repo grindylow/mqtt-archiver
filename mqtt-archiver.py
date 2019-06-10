@@ -12,10 +12,10 @@ import logging
 import signal
 import paho.mqtt.client as mqtt   # pip3 install paho-mqtt
 import pprint
-from archive_file_handling import compose_filename_for
+from archive_file_handling import compose_filename_for,set_filename_template,get_filename_template
 
 PROG = 'mqtt-archive'
-VERSION = '0.01'
+VERSION = '0.02'
 SIGINT = False
 
 def parse_args():
@@ -75,13 +75,25 @@ if __name__ == "__main__":
         datetime.datetime.now(datetime.timezone.utc).isoformat()))
 
     #signal.signal(signal.SIGINT, my_sigint_handler)
-
+    
     args = parse_args()
     #config = parse_config_file(args.conf)
+    mycfg = {}
+    if os.path.isfile(args.conf):
+        logging.info('reading configuration file \'{}\'...'.format(args.conf))
+        mycfg = json.load(open(args.conf))
+        print(mycfg)
+    else:
+        logging.info('no configuration file \'{}\' found - using defaults...'.format(args.conf))
 
+    template = mycfg.get('outtemplate',None)
+    print(template)
+    set_filename_template(template)
+    logging.info('all data will be archived to \'{}\''.format(get_filename_template()))
+    
     # The callback for when the client receives a CONNACK response from the server.
     def on_connect(client, userdata, flags, rc):
-        print("Connected with result code "+str(rc))
+        logging.info("Connected with result code "+str(rc))
 
         # Subscribing in on_connect() means that if we lose the connection and
         # reconnect then subscriptions will be renewed.
@@ -99,7 +111,10 @@ if __name__ == "__main__":
     client.on_connect = on_connect
     client.on_message = on_message
 
-    client.connect("localhost", 1883, 60)
+    host = mycfg.get('mqtt-server', 'localhost')
+    port = int(mycfg.get('mqtt-port', '1883'))
+    logging.info('connecting to MQTT server \'{}\', port {}'.format(host, port))
+    client.connect(host, port, 60)
 
     # Blocking call that processes network traffic, dispatches callbacks and
     # handles reconnecting.
